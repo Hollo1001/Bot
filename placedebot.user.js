@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         PlaceDE Bot
+// @name         place Vtubers Bot
 // @namespace    https://github.com/PlaceDE/Bot
 // @version      11
 // @description  /r/place bot
@@ -9,8 +9,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=reddit.com
 // @require	     https://cdn.jsdelivr.net/npm/toastify-js
 // @resource     TOASTIFY_CSS https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css
-// @updateURL    https://github.com/PlaceDE/Bot/raw/main/placedebot.user.js
-// @downloadURL  https://github.com/PlaceDE/Bot/raw/main/placedebot.user.js
+// @updateURL    https://github.com/TheGeka/Bot/raw/main/placedebot.user.js
+// @downloadURL  https://github.com/TheGeka/Bot/raw/main/placedebot.user.js
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
 // ==/UserScript==
@@ -52,17 +52,17 @@ const COLOR_MAPPINGS = {
 
 (async function () {
 	GM_addStyle(GM_getResourceText('TOASTIFY_CSS'));
-	canvas.width = 1000;
+	canvas.width = 2000;
 	canvas.height = 1000;
 	canvas = document.body.appendChild(canvas);
 
 	Toastify({
-		text: 'Abfrage des Zugriffstokens...',
+		text: 'Fetching Accesstokens...',
 		duration: 10000
 	}).showToast();
 	accessToken = await getAccessToken();
 	Toastify({
-		text: 'Zugriffstoken eingesammelt!',
+		text: 'Accesstokens collected!',
 		duration: 10000
 	}).showToast();
 
@@ -91,12 +91,12 @@ function getPixelList() {
 async function attemptPlace() {
 	var ctx;
 	try {
-		const canvasUrl = await getCurrentImageUrl();
-		ctx = await getCanvasFromUrl(canvasUrl);
+		ctx = await getCanvasFromUrl(await getCurrentImageUrl('0'), canvas, 0, 0);
+		ctx = await getCanvasFromUrl(await getCurrentImageUrl('1'), canvas, 1000, 0)
 	} catch (e) {
-		console.warn('Fehler beim Abrufen der Zeichenfläche:', e);
+		console.warn('Error fetching the canvas:', e);
 		Toastify({
-			text: 'Fehler beim Abrufen der Zeichenfläche. Neuer Versuch in 15 Sekunden...',
+			text: 'Error fetching the canvas. Retry in 15 seconds...',
 			duration: 10000
 		}).showToast();
 		setTimeout(attemptPlace, 15000); // probeer opnieuw in 15sec.
@@ -124,7 +124,7 @@ async function attemptPlace() {
 		foundPixel = true;
 
 		Toastify({
-			text: `Pixel wird gesetzt auf ${x}, ${y}...`,
+			text: `Placing pixel at ${x}, ${y}...`,
 			duration: 10000
 		}).showToast();
 
@@ -142,27 +142,27 @@ async function attemptPlace() {
 		const minutes = Math.floor(waitFor / (1000 * 60))
 		const seconds = Math.floor((waitFor / 1000) % 60)
 		Toastify({
-			text: `Warten auf Abkühlzeit ${minutes}:${seconds} bis ${new Date(nextAvailablePixelTimestamp).toLocaleTimeString()}`,
+			text: `Waiting for cooldown ${minutes}:${seconds} till ${new Date(nextAvailablePixelTimestamp).toLocaleTimeString()}`,
 			duration: waitFor
 		}).showToast();
 		setTimeout(attemptPlace, waitFor);
 	}
 
 	if	(foundPixel) {
-		console.log( `${wrongCount} sind noch falsch`)
+		console.log( `${wrongCount} pixels are wrong!`)
 		return
 	}
 
 	Toastify({
-		text: 'Alle bestellten Pixel haben bereits die richtige Farbe!',
+		text: 'All pixels are the correct color.',
 		duration: 10000
 	}).showToast();
 	setTimeout(attemptPlace, 30000); // probeer opnieuw in 30sec.
 }
 
 function updateOrders() {
-	fetch(`https://placede.github.io/pixel/pixel.json`, {cache: "no-store"}).then(async (response) => {
-		if (!response.ok) return console.warn('Bestellungen können nicht geladen werden!');
+	fetch(`https://raw.githubusercontent.com/TheGeka/pixel/main/pixel.json`, {cache: "no-store"}).then(async (response) => {
+		if (!response.ok) return console.warn('Templates could not be fetched!');
 		const data = await response.json();
 
 		if (JSON.stringify(data) !== JSON.stringify(placeOrders)) {
@@ -172,7 +172,7 @@ function updateOrders() {
 				pixelCount += data.structures[structureName].pixels.length;
 			}
 			Toastify({
-				text: `Neue Strukturen geladen. Bilder: ${structureCount} - Pixels: ${pixelCount}.`,
+				text: `Fetched new templates. Images: ${structureCount} - Pixels: ${pixelCount}.`,
 				duration: 10000
 			}).showToast();
 		}
@@ -180,7 +180,7 @@ function updateOrders() {
 		if (data?.version !== VERSION && !UPDATE_PENDING) {
 			UPDATE_PENDING = true
 			Toastify({
-				text: `NEUE VERSION VERFÜGBAR! Aktualisiere hier https://github.com/placeDE/Bot/raw/main/placedebot.user.js`,
+				text: `New version available! Update here https://github.com/placeDE/Bot/raw/main/placedebot.user.js`,
 				duration: -1,
 				onClick: () => {
 					// Tapermonkey captures this and opens a new tab
@@ -190,7 +190,7 @@ function updateOrders() {
 
 		}
 		placeOrders = data;
-	}).catch((e) => console.warn('Bestellungen können nicht geladen werden!', e));
+	}).catch((e) => console.warn('Templates could not be fetched!', e));
 }
 
 /**
@@ -210,11 +210,11 @@ async function place(x, y, color) {
 					'actionName': 'r/replace:set_pixel',
 					'PixelMessageData': {
 						'coordinate': {
-							'x': x,
-							'y': y
+							'x': x % 1000,
+							'y': y % 1000
 						},
 						'colorIndex': color,
-						'canvasIndex': 0
+						'canvasIndex': (x > 999 ? 1 : 0)
 					}
 				}
 			},
@@ -254,7 +254,7 @@ async function place(x, y, color) {
 	const data = await response.json()
 	if (data.errors != undefined) {
 		Toastify({
-			text: 'Fehler beim Platzieren des Pixels, warte auf Abkühlzeit...',
+			text: 'Error placing the Pixel, waiting for Cooldown...',
 			duration: 10000
 		}).showToast();
 		return data.errors[0].extensions?.nextAvailablePixelTs
@@ -272,7 +272,7 @@ async function getAccessToken() {
 	return responseText.split('\"accessToken\":\"')[1].split('"')[0];
 }
 
-async function getCurrentImageUrl() {
+async function getCurrentImageUrl(id = '0') {
 	return new Promise((resolve, reject) => {
 		const ws = new WebSocket('wss://gql-realtime-2.reddit.com/query', 'graphql-ws');
 
@@ -292,7 +292,7 @@ async function getCurrentImageUrl() {
 							'channel': {
 								'teamOwner': 'AFD2022',
 								'category': 'CANVAS',
-								'tag': '0'
+								'tag': id
 							}
 						}
 					},
@@ -328,7 +328,7 @@ async function getCurrentImageUrl() {
 			if (!parsed.payload || !parsed.payload.data || !parsed.payload.data.subscribe || !parsed.payload.data.subscribe.data) return;
 
 			ws.close();
-			resolve(parsed.payload.data.subscribe.data.name);
+			resolve(parsed.payload.data.subscribe.data.name + `?noCache=${Date.now() * Math.random()}`);
 		}
 
 
@@ -336,13 +336,13 @@ async function getCurrentImageUrl() {
 	});
 }
 
-function getCanvasFromUrl(url) {
+function getCanvasFromUrl(url, canvas, x = 0, y = 0) {
 	return new Promise((resolve, reject) => {
 		var ctx = canvas.getContext('2d');
 		var img = new Image();
 		img.crossOrigin = 'anonymous';
 		img.onload = () => {
-			ctx.drawImage(img, 0, 0);
+			ctx.drawImage(img, x, y);
 			resolve(ctx);
 		};
 		img.onerror = reject;
