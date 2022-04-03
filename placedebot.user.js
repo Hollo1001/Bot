@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         PlaceDE Bot
+// @name         place Vtubers Bot
 // @namespace    https://github.com/PlaceDE/Bot
-// @version      17
+// @version      11
 // @description  /r/place bot
 // @author       NoahvdAa, reckter, SgtChrome, nama17
 // @match        https://www.reddit.com/r/place/*
@@ -9,8 +9,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=reddit.com
 // @require	     https://cdn.jsdelivr.net/npm/toastify-js
 // @resource     TOASTIFY_CSS https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css
-// @updateURL    https://github.com/PlaceDE/Bot/raw/main/placedebot.user.js
-// @downloadURL  https://github.com/PlaceDE/Bot/raw/main/placedebot.user.js
+// @updateURL    https://github.com/TheGeka/Bot/raw/main/placedebot.user.js
+// @downloadURL  https://github.com/TheGeka/Bot/raw/main/placedebot.user.js
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
 // ==/UserScript==
@@ -21,57 +21,48 @@ var placeOrders = [];
 var accessToken;
 var canvas = document.createElement('canvas');
 
-const VERSION = 17
+const VERSION = 11
 var UPDATE_PENDING = false;
 
 const COLOR_MAPPINGS = {
-	'#6D001A': 0,
-	'#BE0039': 1,
 	'#FF4500': 2,
 	'#FFA800': 3,
 	'#FFD635': 4,
-	'#FFF8B8': 5,
 	'#00A368': 6,
-	'#00CC78': 7,
 	'#7EED56': 8,
-	'#00756F': 9,
-	'#009EAA': 10,
-	'#00CCC0': 11,
 	'#2450A4': 12,
 	'#3690EA': 13,
 	'#51E9F4': 14,
-	'#493AC1': 15,
-	'#6A5CFF': 16,
-	'#94B3FF': 17,
 	'#811E9F': 18,
 	'#B44AC0': 19,
-	'#E4ABFF': 20,
-	'#DE107F': 21,
-	'#FF3881': 22,
 	'#FF99AA': 23,
-	'#6D482F': 24,
 	'#9C6926': 25,
-	'#FFB470': 26,
 	'#000000': 27,
-	'#515252': 28,
 	'#898D90': 29,
 	'#D4D7D9': 30,
-	'#FFFFFF': 31
+	'#FFFFFF': 31,
+	'#BE0039': 32,
+	'#00A368': 33,
+	'#00CC78': 34,
+	'#493AC1': 35,
+	'#6A5CFF': 36,
+	'#FF3881': 37,
+	'#6D482F': 38
 };
 
 (async function () {
 	GM_addStyle(GM_getResourceText('TOASTIFY_CSS'));
 	canvas.width = 2000;
-	canvas.height = 2000;
+	canvas.height = 1000;
 	canvas = document.body.appendChild(canvas);
 
 	Toastify({
-		text: 'Abfrage des Zugriffstokens...',
+		text: 'Fetching Accesstokens...',
 		duration: 10000
 	}).showToast();
 	accessToken = await getAccessToken();
 	Toastify({
-		text: 'Zugriffstoken eingesammelt!',
+		text: 'Accesstokens collected!',
 		duration: 10000
 	}).showToast();
 
@@ -102,13 +93,10 @@ async function attemptPlace() {
 	try {
 		ctx = await getCanvasFromUrl(await getCurrentImageUrl('0'), canvas, 0, 0);
 		ctx = await getCanvasFromUrl(await getCurrentImageUrl('1'), canvas, 1000, 0)
-		ctx = await getCanvasFromUrl(await getCurrentImageUrl('2'), canvas, 0, 1000)
-		ctx = await getCanvasFromUrl(await getCurrentImageUrl('3'), canvas, 1000, 1000)
-
 	} catch (e) {
-		console.warn('Fehler beim Abrufen der Zeichenfläche:', e);
+		console.warn('Error fetching the canvas:', e);
 		Toastify({
-			text: 'Fehler beim Abrufen der Zeichenfläche. Neuer Versuch in 15 Sekunden...',
+			text: 'Error fetching the canvas. Retry in 15 seconds...',
 			duration: 10000
 		}).showToast();
 		setTimeout(attemptPlace, 15000); // probeer opnieuw in 15sec.
@@ -116,6 +104,9 @@ async function attemptPlace() {
 	}
 
 	const pixelList = getPixelList();
+
+	let foundPixel = false;
+	let wrongCount = 0;
 
 	for (const order of pixelList) {
 		const x = order.x;
@@ -127,9 +118,13 @@ async function attemptPlace() {
 		const currentColorId = COLOR_MAPPINGS[hex];
 		// Pixel already set
 		if (currentColorId == colorId) continue;
+		wrongCount++;
+
+		if (foundPixel) continue;
+		foundPixel = true;
 
 		Toastify({
-			text: `Pixel wird gesetzt auf ${x}, ${y}...`,
+			text: `Placing pixel at ${x}, ${y}...`,
 			duration: 10000
 		}).showToast();
 
@@ -147,19 +142,27 @@ async function attemptPlace() {
 		const minutes = Math.floor(waitFor / (1000 * 60))
 		const seconds = Math.floor((waitFor / 1000) % 60)
 		Toastify({
-			text: `Warten auf Abkühlzeit ${minutes}:${seconds} bis ${new Date(nextAvailablePixelTimestamp).toLocaleTimeString()}`,
+			text: `Waiting for cooldown ${minutes}:${seconds} till ${new Date(nextAvailablePixelTimestamp).toLocaleTimeString()}`,
 			duration: waitFor
 		}).showToast();
 		setTimeout(attemptPlace, waitFor);
-		return;
 	}
-	
+
+	if	(foundPixel) {
+		console.log( `${wrongCount} pixels are wrong!`)
+		return
+	}
+
+	Toastify({
+		text: 'All pixels are the correct color.',
+		duration: 10000
+	}).showToast();
 	setTimeout(attemptPlace, 30000); // probeer opnieuw in 30sec.
 }
 
 function updateOrders() {
-	fetch(`https://placede.github.io/pixel/pixel.json`, {cache: "no-store"}).then(async (response) => {
-		if (!response.ok) return console.warn('Bestellungen können nicht geladen werden!');
+	fetch(`https://raw.githubusercontent.com/TheGeka/pixel/main/pixel.json`, {cache: "no-store"}).then(async (response) => {
+		if (!response.ok) return console.warn('Templates could not be fetched!');
 		const data = await response.json();
 
 		if (JSON.stringify(data) !== JSON.stringify(placeOrders)) {
@@ -169,7 +172,7 @@ function updateOrders() {
 				pixelCount += data.structures[structureName].pixels.length;
 			}
 			Toastify({
-				text: `Neue Strukturen geladen. Bilder: ${structureCount} - Pixels: ${pixelCount}.`,
+				text: `Fetched new templates. Images: ${structureCount} - Pixels: ${pixelCount}.`,
 				duration: 10000
 			}).showToast();
 		}
@@ -177,23 +180,19 @@ function updateOrders() {
 		if (data?.version !== VERSION && !UPDATE_PENDING) {
 			UPDATE_PENDING = true
 			Toastify({
-				text: `NEUE VERSION VERFÜGBAR! Aktualisiere hier https://github.com/placeDE/Bot/raw/main/placedebot.user.js`,
+				text: `New version available! Update here https://github.com/TheGeka/Bot/raw/main/placedebot.user.js`,
 				duration: -1,
 				onClick: () => {
 					// Tapermonkey captures this and opens a new tab
-					window.location = 'https://github.com/placeDE/Bot/raw/main/placedebot.user.js'
+					window.location = 'https://github.com/TheGeka/Bot/raw/main/placedebot.user.js'
 				}
 			}).showToast();
 
 		}
 		placeOrders = data;
-	}).catch((e) => console.warn('Bestellungen können nicht geladen werden!', e));
+	}).catch((e) => console.warn('Templates could not be fetched!', e));
 }
 
-
-function getCanvasId(x,y) {
-	return (x > 1000) + (y > 1000)*2
-}
 /**
  * Places a pixel on the canvas, returns the "nextAvailablePixelTimestamp", if succesfull
  * @param x
@@ -215,7 +214,7 @@ async function place(x, y, color) {
 							'y': y % 1000
 						},
 						'colorIndex': color,
-						'canvasIndex': getCanvasId(x,y)
+						'canvasIndex': (x > 999 ? 1 : 0)
 					}
 				}
 			},
@@ -255,7 +254,7 @@ async function place(x, y, color) {
 	const data = await response.json()
 	if (data.errors != undefined) {
 		Toastify({
-			text: 'Fehler beim Platzieren des Pixels, warte auf Abkühlzeit...',
+			text: 'Error placing the Pixel, waiting for Cooldown...',
 			duration: 10000
 		}).showToast();
 		return data.errors[0].extensions?.nextAvailablePixelTs
